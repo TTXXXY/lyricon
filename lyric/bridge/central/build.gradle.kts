@@ -8,7 +8,7 @@ configure<LibraryExtension> {
     namespace = "io.github.proify.lyricon.central"
     compileSdk {
         version = release(rootProject.extra.get("compileSdkVersion") as Int) {
-           // minorApiLevel = 1
+            // minorApiLevel = 1
         }
     }
     defaultConfig {
@@ -35,6 +35,7 @@ configure<LibraryExtension> {
 }
 
 dependencies {
+    implementation(project(":common"))
     api(project(":lyric:bridge:provider"))
     api(project(":lyric:bridge:subscriber"))
 

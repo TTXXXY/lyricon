@@ -66,6 +66,15 @@ object SystemUIMediaUtils {
      * 初始化工具类
      * @param context 建议传入 ApplicationContext 以防止内存泄漏。
      */
+    fun close() {
+        mediaSessionManager?.removeOnActiveSessionsChangedListener(sessionListener)
+        mediaSessionManager = null
+        activeSessions.values.forEach { it.release() }
+        activeSessions.clear()
+        listeners.clear()
+        mainHandler.removeCallbacksAndMessages(null)
+    }
+
     fun init(context: Context) {
         if (mediaSessionManager != null) return
 
@@ -91,6 +100,7 @@ object SystemUIMediaUtils {
      *  @param controllers 当前系统中最新的活跃控制器列表
      */
     private fun updateCallbackRegistrations(controllers: List<MediaController>?) {
+        if (io.github.proify.lyricon.xposed.hook.ReloadResources.retiring) return
         // 提取最新 Token 集合用于比对差集
         val newTokens: Set<MediaSession.Token> =
             controllers?.map { it.sessionToken }?.toSet() ?: emptySet()
@@ -138,7 +148,7 @@ object SystemUIMediaUtils {
      * 封装了对 [MediaController.Callback] 的内部实现，负责管理特定会话的生命周期。
      *  @property controller 原始媒体控制器实例
      */
-    private class ControllerWrapper(private val controller: MediaController) {
+    private class ControllerWrapper(internal val controller: MediaController) {
 
         /** 所属应用包名 */
         val packageName: String = controller.packageName ?: "unknown"
@@ -149,6 +159,7 @@ object SystemUIMediaUtils {
          */
         private val callback: MediaController.Callback = object : MediaController.Callback() {
             override fun onMetadataChanged(metadata: MediaMetadata?) {
+                if (io.github.proify.lyricon.xposed.hook.ReloadResources.retiring) return
                 metadata?.let { m: MediaMetadata ->
                     mainHandler.post {
                         listeners.forEach { it.onMediaChanged(controller, m) }
@@ -157,6 +168,7 @@ object SystemUIMediaUtils {
             }
 
             override fun onPlaybackStateChanged(state: PlaybackState?) {
+                if (io.github.proify.lyricon.xposed.hook.ReloadResources.retiring) return
                 state?.let { s: PlaybackState ->
                     mainHandler.post {
                         listeners.forEach { it.onPlaybackStateChanged(controller, s) }
@@ -165,6 +177,7 @@ object SystemUIMediaUtils {
             }
 
             override fun onSessionDestroyed() {
+                if (io.github.proify.lyricon.xposed.hook.ReloadResources.retiring) return
                 mainHandler.post {
                     // 会话销毁时从容器中移除并解绑
                     activeSessions.remove(controller.sessionToken)?.release()
@@ -207,6 +220,24 @@ object SystemUIMediaUtils {
      * @return 如果注销成功返回 true
      */
     fun unregisterListener(l: MediaControllerCallback): Boolean = listeners.remove(l)
+
+    /**
+     * 获取指定包名对应的活跃媒体控制器。
+     *
+     * 用于"状态栏歌词控制窗口"等场景，向当前播放器下发播放/暂停、上一首/下一首、跳转进度等指令。
+     *
+     * @param packageName 目标播放器应用包名，传 null 时返回最近注册的控制器
+     * @return 匹配到的 [MediaController]，未找到时返回 null
+     */
+    fun getController(packageName: String? = null): MediaController? {
+        if (activeSessions.isEmpty()) return null
+        val target = packageName?.takeIf { it.isNotBlank() }
+        if (target != null) {
+            return activeSessions.values.firstOrNull { it.packageName == target }?.controller
+        }
+        // 返回最近通过 callback 注册的控制器作为兜底
+        return activeSessions.values.lastOrNull()?.controller
+    }
 
     /**
      * 媒体控制器事件回调接口

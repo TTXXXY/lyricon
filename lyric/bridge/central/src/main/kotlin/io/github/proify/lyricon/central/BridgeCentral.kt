@@ -11,7 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
-import io.github.proify.lyricon.central.util.ScreenStateMonitor
+import io.github.proify.lyricon.central.internal.CentralConstants
+import io.github.proify.lyricon.central.internal.util.ScreenStateMonitor
 
 /**
  * 中央桥接管理对象。
@@ -44,11 +45,19 @@ object BridgeCentral {
             context,
             receiver,
             IntentFilter().apply {
-                addAction(Constants.ACTION_REGISTER_PROVIDER)
-                addAction(Constants.ACTION_REGISTER_SUBSCRIBER)
+                addAction(CentralConstants.ACTION_REGISTER_PROVIDER)
+                addAction(CentralConstants.ACTION_REGISTER_SUBSCRIBER)
             },
             ContextCompat.RECEIVER_EXPORTED
         )
+    }
+
+    fun close() {
+        if (!::context.isInitialized) return
+        context.unregisterReceiver(receiver)
+        CentralRuntime.subscribers.closeAll()
+        CentralRuntime.providers.closeAll()
+        ScreenStateMonitor.release()
     }
 
     /**
@@ -58,6 +67,6 @@ object BridgeCentral {
      */
     fun sendBootCompleted() {
         if (!::context.isInitialized) return
-        context.sendBroadcast(Intent(Constants.ACTION_CENTRAL_BOOT_COMPLETED))
+        context.sendBroadcast(Intent(CentralConstants.ACTION_CENTRAL_BOOT_COMPLETED))
     }
 }

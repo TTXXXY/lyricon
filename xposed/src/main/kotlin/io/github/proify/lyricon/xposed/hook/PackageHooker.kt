@@ -20,10 +20,10 @@ abstract class PackageHooker {
     }
 
     protected lateinit var module: XposedModule
-    protected lateinit var packageParam: XposedModuleInterface.PackageLoadedParam
+    protected lateinit var packageParam: XposedModuleInterface.PackageReadyParam
 
     val packageName: String get() = packageParam.packageName
-    val classLoader: ClassLoader get() = packageParam.defaultClassLoader
+    val classLoader: ClassLoader get() = packageParam.classLoader
 
     @Volatile
     var appContext: Application? = null
@@ -111,6 +111,7 @@ abstract class PackageHooker {
     }
 
     private fun handleApplicationInstance(instance: Application) {
+        if (ReloadResources.retiring) return
         if (appContext != null) return
 
         synchronized(this) {
@@ -130,7 +131,7 @@ abstract class PackageHooker {
     }
 
     private var isAttached = false
-    fun hook(module: XposedModule, param: XposedModuleInterface.PackageLoadedParam) {
+    fun hook(module: XposedModule, param: XposedModuleInterface.PackageReadyParam, application: Application? = null) {
         if (isAttached) {
             YLog.info(TAG, "Already attached")
             return
@@ -138,6 +139,7 @@ abstract class PackageHooker {
         isAttached = true
         this.module = module
         this.packageParam = param
+        this.appContext = application
         onHook()
     }
 
